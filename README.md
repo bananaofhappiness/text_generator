@@ -1,0 +1,1 @@
+A text generator that generates texts in Russian based on the frequency of a character or sequence of characters
