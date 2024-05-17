@@ -56,10 +56,10 @@ a number from 1 to 5 to choose depth level of algorithm.");
 }
 
 pub mod dev_fn {
-    use std::{collections::HashMap, io::Write};
+    use super::*;
+    use std::{collections::BTreeMap, io::Write};
     use unicode_segmentation::UnicodeSegmentation;
 
-    use super::*;
     pub fn prepare_text() -> Result<(), Box<dyn Error>> {
         let whitelisted = ['а', 'б', 'в', 'г', 'д', 'е', 'ё', 'ж', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о', 'п', 'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 'я', ' ', '\n'];
         let paths = match fs::read_dir("texts") {
@@ -88,7 +88,7 @@ pub mod dev_fn {
 
     pub fn create_model() -> Result<(), Box<dyn Error>> {
         for level in 1..=5 {
-            let mut map = HashMap::new();
+            let mut map = BTreeMap::new();
             let paths = match fs::read_dir("prep_texts") {
                 Ok(paths) => paths,
                 Err(err) => return Err(Box::new(err)),
@@ -96,12 +96,12 @@ pub mod dev_fn {
             for path in paths {
                 let contents = fs::read_to_string(format!("{}",path.as_ref().unwrap().path().display()))?;
                 let contents: Vec<&str> = contents.graphemes(true).collect();
-                for i in 0..contents.len()-level {
+                for i in 0..=contents.len()-level {
                     let mut word = contents[i].to_string();
                     for j in 1..level {
                         word += contents[i+j];
                     }
-                    let count = map.entry(word.to_string()).or_insert(1);
+                    let count: &mut u32 = map.entry(word.to_string()).or_insert(0);
                     *count += 1;
                 }
             }
@@ -114,5 +114,48 @@ pub mod dev_fn {
 }
 
 pub mod user_fn {
+    use super::*;
+    use std::{collections::BTreeMap, fs};
+    use rand::prelude::*;
 
+    pub fn generate_level_1_text() -> Result<String, Box<dyn Error>> {
+        let file = fs::read_to_string(format!("models/level_1.json"))?;
+        let map: BTreeMap<String, u32> = serde_json::from_str(&file).unwrap();
+
+        let mut choices = Vec::new();
+        for (key, value) in map.iter() {
+            choices.push((key.clone(), value.clone()))
+        }
+        drop(map);
+
+        let mut text = String::new();
+        let mut rng = thread_rng();
+
+        for _ in 0..200 {
+            text += &choices.choose_weighted(&mut rng, |item| item.1).unwrap().0;
+        }
+
+        Ok(text)
+    }
+
+    pub fn generate_text(level: u8) -> Result<String, Box<dyn Error>>{
+        let file = fs::read_to_string(format!("models/level_{}.json",level))?;
+        let map: BTreeMap<String, u32> = serde_json::from_str(&file).unwrap();
+        Ok("a".to_string())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn it_counts_right() {
+        todo!()
+    }
+
+    #[test]
+    fn it_gets_to_the_end_of_file() {
+        todo!()
+    }
 }
