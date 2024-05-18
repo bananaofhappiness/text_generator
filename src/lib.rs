@@ -145,7 +145,6 @@ pub mod user_fn {
         let mut text = String::from(" ");
         text += &make_first_choice(&map, " ");
 
-        dbg!(&text);
         for _ in 0..200 {
             let split_pos = text.char_indices().nth_back((level-2) as usize).unwrap().0;
             text += &make_choices(&map, &text[split_pos..]);
@@ -175,7 +174,7 @@ pub mod user_fn {
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    // use super::*;
 
     #[test]
     fn it_counts_right() {
