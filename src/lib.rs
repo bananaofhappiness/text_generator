@@ -141,7 +141,36 @@ pub mod user_fn {
     pub fn generate_text(level: u8) -> Result<String, Box<dyn Error>>{
         let file = fs::read_to_string(format!("models/level_{}.json",level))?;
         let map: BTreeMap<String, u32> = serde_json::from_str(&file).unwrap();
-        Ok("a".to_string())
+
+        let mut text = String::from(" ");
+        text += &make_first_choice(&map, " ");
+
+        dbg!(&text);
+        for _ in 0..200 {
+            let split_pos = text.char_indices().nth_back((level-2) as usize).unwrap().0;
+            dbg!(&text[split_pos..]);
+            text += &make_choices(&map, &text[split_pos..]);
+        }
+
+        Ok(text)
+    }
+
+    fn make_choices(map: &BTreeMap<String, u32>, find: &str) -> String {
+        let mut rng = thread_rng();
+        let mut choices = Vec::new();
+        for (key, value) in map.range(find.to_owned()..).take_while(|(k, _)| k.starts_with(find)) {
+            choices.push((key,value))
+        }
+        choices.choose_weighted(&mut rng, |item| item.1).unwrap().0.chars().last().unwrap().to_string()
+    }
+
+    fn make_first_choice<'a> (map: &'a BTreeMap<String, u32>, find: &str) -> &'a str {
+        let mut rng = thread_rng();
+        let mut choices = Vec::new();
+        for (key, value) in map.range(find.to_owned()..).take_while(|(k, _)| k.starts_with(find)) {
+            choices.push((key,value))
+        }
+        choices.choose_weighted(&mut rng, |item| item.1).unwrap().0
     }
 }
 

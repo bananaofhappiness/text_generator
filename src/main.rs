@@ -27,6 +27,7 @@ fn main() {
                 eprintln!("Не удалось сгенерировать текст: | Couldn't generate text:\n{err}");
                 process::exit(1);
             });
+            let text = text.trim();
             println!("{}", text);
         },
 
@@ -35,6 +36,7 @@ fn main() {
                 eprintln!("Не удалось сгенерировать текст: | Couldn't generate text:\n{err}");
                 process::exit(1);
             });
+            let text = text.trim();
             println!("{}", text);
         },
 
