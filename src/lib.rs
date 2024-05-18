@@ -148,7 +148,6 @@ pub mod user_fn {
         dbg!(&text);
         for _ in 0..200 {
             let split_pos = text.char_indices().nth_back((level-2) as usize).unwrap().0;
-            dbg!(&text[split_pos..]);
             text += &make_choices(&map, &text[split_pos..]);
         }
 
