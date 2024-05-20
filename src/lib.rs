@@ -14,11 +14,11 @@ impl Config {
             return Err("\
 Недостаточно аргументов.
 Используйте следующие аргументы:
-число от 1 до 5 для выбора уровня глубины алгоритма.
+число от 1 до 10 для выбора уровня глубины алгоритма.
 
 Not enough arguments.
 Use following arguments:
-a number from 1 to 5 to choose depth level of algorithm.");
+a number from 1 to 10 to choose depth level of algorithm.");
         }
 
         let depth_level: u8;
@@ -32,19 +32,19 @@ a number from 1 to 5 to choose depth level of algorithm.");
 
         if depth_level < 1 {
             return Err("Уровень глубины не может быть меньше 1.\nDepth level can't be less than 1.");
-        } else if depth_level > 5 {
-            return Err("Уровень глубины не может быть больше 5.\nDepth level can't be more than 5.");
+        } else if depth_level > 10 {
+            return Err("Уровень глубины не может быть больше 10.\nDepth level can't be more than 5.");
         }
 
         let dev_mode = env::var("DEV_MODE").is_ok();
-        if dev_mode {
-            return Ok(Config{
-                // language,
-                depth_level,
-                dev_mode,
-                // dev_text: Some(args[2].clone())
-            })
-        }
+        // if dev_mode {
+        //     return Ok(Config{
+        //         // language,
+        //         depth_level,
+        //         dev_mode,
+        //         // dev_text: Some(args[2].clone())
+        //     })
+        // }
         Ok(Config{
             // language,
             depth_level,
@@ -87,7 +87,7 @@ pub mod dev_fn {
     }
 
     pub fn create_model() -> Result<(), Box<dyn Error>> {
-        for level in 1..=5 {
+        for level in 1..=10 {
             let mut map = BTreeMap::new();
             let paths = match fs::read_dir("prep_texts") {
                 Ok(paths) => paths,
@@ -159,7 +159,13 @@ pub mod user_fn {
         for (key, value) in map.range(find.to_owned()..).take_while(|(k, _)| k.starts_with(find)) {
             choices.push((key,value))
         }
-        choices.choose_weighted(&mut rng, |item| item.1).unwrap().0.chars().last().unwrap().to_string()
+        choices.choose_weighted(&mut rng, |item| item.1)
+                .unwrap()
+                .0
+                .chars()
+                .last()
+                .unwrap()
+                .to_string()
     }
 
     fn make_first_choice<'a> (map: &'a BTreeMap<String, u32>, find: &str) -> &'a str {
@@ -168,7 +174,9 @@ pub mod user_fn {
         for (key, value) in map.range(find.to_owned()..).take_while(|(k, _)| k.starts_with(find)) {
             choices.push((key,value))
         }
-        choices.choose_weighted(&mut rng, |item| item.1).unwrap().0
+        choices.choose_weighted(&mut rng, |item| item.1)
+                .unwrap()
+                .0
     }
 }
 
