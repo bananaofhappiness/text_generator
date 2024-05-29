@@ -11,10 +11,10 @@ fn main() {
     });
 
     if config.dev_mode {
-        if let Err(err) = dev_fn::prepare_text() {
-            eprintln!("{err}");
-            process::exit(1);
-        };
+        // if let Err(err) = dev_fn::prepare_text() {
+        //     eprintln!("{err}");
+        //     process::exit(1);
+        // };
         if let Err(err) = dev_fn::create_model() {
             eprintln!("{err}");
             process::exit(1);
@@ -39,6 +39,5 @@ fn main() {
             let text = text.trim();
             println!("{}", text);
         },
-
     }
 }
