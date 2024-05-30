@@ -1,6 +1,9 @@
 use std::env;
 use std::fs;
 use std::error::Error;
+
+const DEPTH: usize = 20;
+
 pub struct Config {
     // pub language: String,
     pub depth_level: u8,
@@ -32,8 +35,8 @@ a number from 1 to 10 to choose depth level of algorithm.");
 
         if depth_level < 1 {
             return Err("Уровень глубины не может быть меньше 1.\nDepth level can't be less than 1.");
-        } else if depth_level > 10 {
-            return Err("Уровень глубины не может быть больше 10.\nDepth level can't be more than 5.");
+        } else if depth_level > DEPTH as u8 {
+            return Err("Уровень глубины не может быть больше 20.\nDepth level can't be more than 20.");
         }
 
         let dev_mode = env::var("DEV_MODE").is_ok();
@@ -57,59 +60,100 @@ a number from 1 to 10 to choose depth level of algorithm.");
 
 pub mod dev_fn {
     use super::*;
-    use std::{collections::BTreeMap, io::Write};
+    use std::{collections::BTreeMap, io::Write, sync::mpsc, thread::{self, JoinHandle}};
     use unicode_segmentation::UnicodeSegmentation;
 
-    pub fn prepare_text() -> Result<(), Box<dyn Error>> {
+    pub fn prepare_text() -> Result<(), Box<std::io::Error>> {
         let whitelisted = ['а', 'б', 'в', 'г', 'д', 'е', 'ё', 'ж', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о', 'п', 'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 'я', ' ', '\n'];
         let paths = match fs::read_dir("texts") {
             Ok(paths) => paths,
             Err(err) => return Err(Box::new(err)),
         };
-        for path in paths {
-            let contents = fs::read_to_string(format!("{}",path.as_ref().unwrap().path().display()))?.to_lowercase();
-            let mut prep_contents: String = contents
-                .chars()
-                .filter(|c| whitelisted.contains(c))
-                .collect();
-            prep_contents = prep_contents.replace("-", " ")
-                .replace("\n", " ")
-                .trim()
-                .split(' ')
-                .filter(|s| !s.is_empty())
-                .collect::<Vec<_>>()
-                .join(" ");
-            if let Err(err) = fs::write(format!("prep_{}",path.as_ref().unwrap().path().display()), prep_contents) {
-                return Err(Box::new(err))
-            };
+        let mut v = Vec::<JoinHandle<Result<(), Box<std::io::Error>>>>::new();
+        paths.into_iter().for_each(|path| {
+            let handler = thread::spawn(move || {
+                let contents = fs::read_to_string(format!("{}",path.as_ref().unwrap().path().display()))?.to_lowercase();
+                let mut prep_contents: String = contents
+                    .chars()
+                    .filter(|c| whitelisted.contains(c))
+                    .collect();
+                prep_contents = prep_contents.replace("-", " ")
+                    .replace("\n", " ")
+                    .trim()
+                    .split(' ')
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if let Err(err) = fs::write(format!("prep_{}",path.as_ref().unwrap().path().display()), prep_contents) {
+                    return Err(Box::new(err))
+                };
+                Ok(())
+            });
+            v.push(handler);
+        });
+        for jh in v.into_iter() {
+            if let Err(err) = jh.join().unwrap() {
+                return Err(err);
+            }
+        };
+        Ok(())
+    }
+    
+
+    pub fn create_model() -> Result<(), Box<std::io::Error>> {
+        let mut v = Vec::<JoinHandle<Result<(), Box<std::io::Error>>>>::new();
+        for level in 1..=DEPTH {
+            let handler = thread::spawn(move || {
+                let (tx, rx) = mpsc::channel();
+                let mut map: BTreeMap<String, u64> = BTreeMap::new();
+                let paths = match fs::read_dir("prep_texts") {
+                    Ok(paths) => paths,
+                    Err(err) => return Err(Box::new(err)),
+                };
+                for path in paths {
+                    let txc = tx.clone();
+                    thread::spawn(move || {
+                        let mut content_map = BTreeMap::new();
+                        let contents = fs::read_to_string(format!("{}",path.as_ref().unwrap().path().display())).unwrap();
+                        let contents: Vec<&str> = contents.graphemes(true).collect();
+                        for i in 0..=contents.len()-level {
+                            let mut word = contents[i].to_string();
+                            for j in 1..level {
+                                word += contents[i+j];
+                            }
+                            let count: &mut u64 = content_map.entry(word.to_string()).or_insert(0);
+                            *count += 1;
+                        }
+                        txc.send(content_map).unwrap();
+                    });
+                }
+    
+                drop(tx);
+    
+                for received in rx {
+                    add_to_map(&mut map, received);
+                }
+    
+                let mut file = fs::File::create(format!("models/level_{}.json",level))?;
+                let serialized = serde_json::to_string(&map).unwrap();
+                file.write_all(serialized.as_bytes())?;
+                Ok(())
+            });
+            v.push(handler);
         }
+        for jh in v.into_iter() {
+            if let Err(err) = jh.join().unwrap() {
+                return Err(err);
+            }
+        };
         Ok(())
     }
 
-    pub fn create_model() -> Result<(), Box<dyn Error>> {
-        for level in 1..=10 {
-            let mut map = BTreeMap::new();
-            let paths = match fs::read_dir("prep_texts") {
-                Ok(paths) => paths,
-                Err(err) => return Err(Box::new(err)),
-            };
-            for path in paths {
-                let contents = fs::read_to_string(format!("{}",path.as_ref().unwrap().path().display()))?;
-                let contents: Vec<&str> = contents.graphemes(true).collect();
-                for i in 0..=contents.len()-level {
-                    let mut word = contents[i].to_string();
-                    for j in 1..level {
-                        word += contents[i+j];
-                    }
-                    let count: &mut u32 = map.entry(word.to_string()).or_insert(0);
-                    *count += 1;
-                }
-            }
-            let mut file = fs::File::create(format!("models/level_{}.json",level))?;
-            let serialized = serde_json::to_string(&map)?;
-            file.write_all(serialized.as_bytes())?;
-        }
-        Ok(())
+    pub fn add_to_map(map: &mut BTreeMap<String, u64>, map2: BTreeMap<String, u64>) {
+        map2.into_iter().for_each(|x| {
+            let count = map.entry(x.0).or_insert(0);
+            *count += x.1;
+        })
     }
 }
 
@@ -131,7 +175,7 @@ pub mod user_fn {
         let mut text = String::new();
         let mut rng = thread_rng();
 
-        for _ in 0..200 {
+        for _ in 0..2000 {
             text += &choices.choose_weighted(&mut rng, |item| item.1).unwrap().0;
         }
 
@@ -145,7 +189,7 @@ pub mod user_fn {
         let mut text = String::from(" ");
         text += &make_first_choice(&map, " ");
 
-        for _ in 0..200 {
+        for _ in 0..2000 {
             let split_pos = text.char_indices().nth_back((level-2) as usize).unwrap().0;
             text += &make_choices(&map, &text[split_pos..]);
         }
@@ -182,15 +226,39 @@ pub mod user_fn {
 
 #[cfg(test)]
 mod test {
-    // use super::*;
+    use std::collections::BTreeMap;
+    use super::*;
 
     #[test]
-    fn it_counts_right() {
-        todo!()
-    }
+    fn it_adds_to_map() {
+        let mut map = BTreeMap::new();
+        map.insert("a".to_owned(), 1);
+        map.insert("b".to_owned(), 2);
+        map.insert("c".to_owned(), 3);
+        let mut map2 = BTreeMap::new();
+        map2.insert("a".to_owned(), 1);
+        map2.insert("b".to_owned(), 2);
+        map2.insert("c".to_owned(), 3);
+        let mut map3 = BTreeMap::new();
+        map3.insert("a".to_owned(), 2);
+        map3.insert("b".to_owned(), 4);
+        map3.insert("c".to_owned(), 6);
+        dev_fn::add_to_map(&mut map,map2);
+        assert_eq!(map3, map);
 
-    #[test]
-    fn it_gets_to_the_end_of_file() {
-        todo!()
+        let mut map = BTreeMap::new();
+        map.insert("a".to_owned(), 100);
+        map.insert("b".to_owned(), 21923);
+        map.insert("c".to_owned(), 3123);
+        let mut map2 = BTreeMap::new();
+        map2.insert("a".to_owned(), 146);
+        map2.insert("b".to_owned(), 254);
+        map2.insert("c".to_owned(), 3123);
+        let mut map3 = BTreeMap::new();
+        map3.insert("a".to_owned(), 246);
+        map3.insert("b".to_owned(), 22177);
+        map3.insert("c".to_owned(), 6246);
+        dev_fn::add_to_map(&mut map,map2);
+        assert_eq!(map3, map);
     }
 }

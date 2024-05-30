@@ -39,6 +39,5 @@ fn main() {
             let text = text.trim();
             println!("{}", text);
         },
-
     }
 }
